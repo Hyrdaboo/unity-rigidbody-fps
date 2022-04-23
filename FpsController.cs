@@ -1,0 +1,184 @@
+using UnityEngine;
+
+public class FpsController : MonoBehaviour
+{
+    [Header("Camera\n")]
+    public Camera fpsCam;
+    public float lookSensitivity = 4.5f;
+    public float smoothTime = 6.5f;
+    public bool invertedLook = false;
+    [Header("Movement\n")]
+    public Rigidbody rb;
+    [Tooltip("Make sure to add physics material to your capsule collider and set its friction to 0")]
+    public PhysicMaterial slipperyMaterial;
+    public float moveSpeed = 10f;
+    public float walkMaxSpeed = 5f;
+    public float sprintMaxSpeed = 10;
+    public float groundFriction = 7.8f;
+    public bool stopInstantly = false;
+    public float jumpForce = 10;
+    public float stepOffset = 1f;
+    public LayerMask WhatIsGround;
+
+    private Vector3 PlayerRotation;
+    private Vector2 inputDir = Vector2.zero;
+    float MouseX, MouseY;
+    private float maxSpeed = 0;
+    private bool crouching = false;
+    private bool sprinting = false;
+    private bool jumping = false;
+    private bool canJump = true;
+    private bool isGrounded = false;
+    private void Start()
+    {
+        PlayerRotation = new Vector3(transform.localRotation.eulerAngles.x, 0, transform.localRotation.eulerAngles.z);
+        Cursor.lockState = CursorLockMode.Locked;
+    }
+    private void Update()
+    {
+        GetInput();
+    }
+
+    private void FixedUpdate()
+    {
+        MoveCam();
+        Movement();
+    }
+
+    private void Movement()
+    {
+        rb.AddForce(-transform.up * 9.8f);
+        // ground check
+        Ray ray = new Ray(transform.position, -transform.up);
+        RaycastHit hit;
+        isGrounded = Physics.Raycast(ray, out hit, 1.1f, WhatIsGround);
+
+        if (inputDir.magnitude == 0 && stopInstantly && isGrounded)
+        {
+            rb.velocity = new Vector3(0, rb.velocity.y, 0);
+        }
+        // prevent jittery movement caused by physics material when not moving
+        if (inputDir.magnitude == 0)
+        {
+            slipperyMaterial.frictionCombine = PhysicMaterialCombine.Average;
+        }
+        else slipperyMaterial.frictionCombine = PhysicMaterialCombine.Multiply;
+
+        // move the player by adding force
+        Vector3 moveDir = (transform.forward * inputDir.y + transform.right * inputDir.x).normalized * moveSpeed * Time.fixedDeltaTime * 10;
+        rb.AddForce(moveDir, ForceMode.VelocityChange);
+
+        // clamp velocity so we don't go over max speed
+        Vector3 velClamped = Vector3.ClampMagnitude(rb.velocity, maxSpeed);
+        rb.velocity = new Vector3(velClamped.x, rb.velocity.y, velClamped.z);
+
+        // if the player is not pressing any keys apply friction
+        if (inputDir.magnitude <= .2f && (int)rb.velocity.magnitude > 0 && isGrounded)
+        {
+            Vector3 vDir = -rb.velocity.normalized * groundFriction;
+            Vector3 friction = new Vector3(vDir.x, 0, vDir.z);
+            rb.AddForce(friction);
+        }
+        if (jumping && isGrounded && canJump)
+        {
+            canJump = false;
+            Invoke(nameof(Jump), .1f);
+        }
+        StepOffset();
+        Crouch();
+        Sprint();
+        if (!crouching && !sprinting) maxSpeed = walkMaxSpeed;
+    }
+
+    private void Crouch()
+    {
+        if (!sprinting && crouching && isGrounded)
+        {
+            rb.gameObject.transform.localScale = new Vector3(1, .5f, 1);
+            maxSpeed = 2;
+        }
+        if (!crouching)
+        {
+            rb.gameObject.transform.localScale = Vector3.one;
+        }
+    }
+
+    private void Sprint()
+    {
+        if (isGrounded && !crouching && sprinting)
+        {
+            maxSpeed = sprintMaxSpeed;
+        }
+    }
+    
+    private void StepOffset()
+    {
+        Vector3 vel = (transform.forward * inputDir.y + transform.right * inputDir.x).normalized;
+        vel.y = 0;
+        Vector3 leg = transform.position - new Vector3(0, transform.localScale.y - .15f, 0);
+        Vector3 step = transform.position - new Vector3(0, transform.localScale.y - stepOffset, 0);
+        Ray legRay = new Ray(leg, vel);
+        Ray stepRay = new Ray(step, vel);
+        RaycastHit legHit;
+        RaycastHit stepHit;
+        float castDist = .9f;
+        bool legBlocked = Physics.Raycast(legRay, out legHit, castDist, WhatIsGround);
+        bool stepBlocked = Physics.Raycast(stepRay, out stepHit, castDist, WhatIsGround);
+        if (legBlocked && !stepBlocked)
+        {   Rigidbody hitbody = legHit.transform.gameObject.GetComponent<Rigidbody>();
+            if (hitbody != null) return;
+            inputDir = Vector3.zero;
+            rb.AddForce(transform.up * stepOffset/2, ForceMode.Impulse);
+        }
+    }
+    
+
+    private void Jump()
+    {
+        rb.AddForce(transform.up * jumpForce, ForceMode.Impulse);
+        Invoke(nameof(ResetJump), .1f);
+    }
+    private void ResetJump()
+    {
+        canJump = true;
+    }
+
+    private void GetInput()
+    {
+        // mouse input
+        float invert = invertedLook ? -1 : 1;
+        MouseX = Input.GetAxisRaw("Mouse X") * invert;
+        MouseY = Input.GetAxisRaw("Mouse Y") * invert;
+
+        inputDir.x = Input.GetAxisRaw("Horizontal");
+        inputDir.y = Input.GetAxisRaw("Vertical");
+        if (Input.GetKey(KeyCode.Space))
+        {
+            jumping = true;
+        }
+        else jumping = false;
+        if (Input.GetKey(KeyCode.LeftShift))
+        {
+            sprinting = true;
+        }
+        else sprinting = false;
+        if (Input.GetKey(KeyCode.C))
+        {
+            crouching = true;
+        }
+        else crouching = false;
+    }
+
+    Vector3 camRotation = new Vector3(0, 0, 0);
+    private void MoveCam()
+    {
+        camRotation.x -= MouseY * lookSensitivity;
+
+        camRotation.x = Mathf.Clamp(camRotation.x, -90, 90);
+        Vector3 newCamRot = new Vector3(camRotation.x, 0, 0);
+        fpsCam.transform.localRotation = Quaternion.Slerp(fpsCam.transform.localRotation, Quaternion.Euler(newCamRot.x, newCamRot.y, newCamRot.z), Time.fixedDeltaTime * smoothTime);
+
+        PlayerRotation.y += MouseX * lookSensitivity;
+        transform.localRotation = Quaternion.Slerp(transform.localRotation, Quaternion.Euler(PlayerRotation), Time.fixedDeltaTime * smoothTime);
+    }
+}
