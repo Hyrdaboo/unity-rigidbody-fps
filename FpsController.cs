@@ -11,9 +11,11 @@ public class FpsController : MonoBehaviour
     public Rigidbody rb;
     [Tooltip("Make sure to add physics material to your capsule collider and set its friction to 0")]
     public PhysicMaterial slipperyMaterial;
-    public float moveSpeed = 10f;
+    [Tooltip("How fast player reaches max speed. Don't make this too high you might encounter some bugs")]
+    public float acceleration = 10f;
     public float walkMaxSpeed = 5f;
     public float sprintMaxSpeed = 10;
+    public float crouchMaxSpeed = 2;
     public float groundFriction = 7.8f;
     public bool stopInstantly = false;
     public float jumpForce = 10;
@@ -65,7 +67,7 @@ public class FpsController : MonoBehaviour
         else slipperyMaterial.frictionCombine = PhysicMaterialCombine.Multiply;
 
         // move the player by adding force
-        Vector3 moveDir = (transform.forward * inputDir.y + transform.right * inputDir.x).normalized * moveSpeed * Time.fixedDeltaTime * 10;
+        Vector3 moveDir = (transform.forward * inputDir.y + transform.right * inputDir.x).normalized * acceleration * Time.fixedDeltaTime * 10;
         rb.AddForce(moveDir, ForceMode.VelocityChange);
 
         // clamp velocity so we don't go over max speed
@@ -95,7 +97,7 @@ public class FpsController : MonoBehaviour
         if (!sprinting && crouching && isGrounded)
         {
             rb.gameObject.transform.localScale = new Vector3(1, .5f, 1);
-            maxSpeed = 2;
+            maxSpeed = crouchMaxSpeed;
         }
         if (!crouching)
         {
@@ -110,7 +112,7 @@ public class FpsController : MonoBehaviour
             maxSpeed = sprintMaxSpeed;
         }
     }
-    
+
     private void StepOffset()
     {
         Vector3 vel = (transform.forward * inputDir.y + transform.right * inputDir.x).normalized;
@@ -125,13 +127,14 @@ public class FpsController : MonoBehaviour
         bool legBlocked = Physics.Raycast(legRay, out legHit, castDist, WhatIsGround);
         bool stepBlocked = Physics.Raycast(stepRay, out stepHit, castDist, WhatIsGround);
         if (legBlocked && !stepBlocked)
-        {   Rigidbody hitbody = legHit.transform.gameObject.GetComponent<Rigidbody>();
+        {
+            Rigidbody hitbody = legHit.transform.gameObject.GetComponent<Rigidbody>();
             if (hitbody != null) return;
             inputDir = Vector3.zero;
-            rb.AddForce(transform.up * stepOffset/2, ForceMode.Impulse);
+            rb.AddForce(transform.up * stepOffset / 2, ForceMode.Impulse);
         }
     }
-    
+
 
     private void Jump()
     {
