@@ -39,6 +39,9 @@ public class FpsController : MonoBehaviour
     private void Update()
     {
         GetInput();
+        // clamp velocity so we don't go over max speed
+        // calling this from here because fixed update causes bugs
+        ClampVelocity();
     }
 
     private void FixedUpdate()
@@ -69,10 +72,7 @@ public class FpsController : MonoBehaviour
         // move the player by adding force
         Vector3 moveDir = (transform.forward * inputDir.y + transform.right * inputDir.x).normalized * acceleration * Time.fixedDeltaTime * 10;
         rb.AddForce(moveDir, ForceMode.VelocityChange);
-
-        // clamp velocity so we don't go over max speed
-        Vector3 velClamped = Vector3.ClampMagnitude(rb.velocity, maxSpeed);
-        rb.velocity = new Vector3(velClamped.x, rb.velocity.y, velClamped.z);
+       
 
         // if the player is not pressing any keys apply friction
         if (inputDir.magnitude <= .2f && (int)rb.velocity.magnitude > 0 && isGrounded)
@@ -90,6 +90,12 @@ public class FpsController : MonoBehaviour
         Crouch();
         Sprint();
         if (!crouching && !sprinting) maxSpeed = walkMaxSpeed;
+    }
+
+    private void ClampVelocity()
+    {
+        Vector3 velClamped = Vector3.ClampMagnitude(rb.velocity, maxSpeed);
+        rb.velocity = new Vector3(velClamped.x, rb.velocity.y, velClamped.z);
     }
 
     private void Crouch()
