@@ -21,7 +21,7 @@ public class FpsController : MonoBehaviour
     public float jumpForce = 10;
     public float stepOffset = 1f;
     public LayerMask WhatIsGround;
-
+   
     private Vector3 PlayerRotation;
     private Vector2 inputDir = Vector2.zero;
     float MouseX, MouseY;
@@ -110,11 +110,11 @@ public class FpsController : MonoBehaviour
             rb.gameObject.transform.localScale = Vector3.one;
         }
     }
-
     private void Sprint()
     {
         if (isGrounded && !crouching && sprinting)
         {
+            
             maxSpeed = sprintMaxSpeed;
         }
     }
@@ -171,11 +171,10 @@ public class FpsController : MonoBehaviour
             sprinting = true;
         }
         else sprinting = false;
-        if (Input.GetKey(KeyCode.C))
+        if (Input.GetKeyDown(KeyCode.C))
         {
-            crouching = true;
+            crouching = !crouching ? true : false;
         }
-        else crouching = false;
     }
 
     Vector3 camRotation = new Vector3(0, 0, 0);
