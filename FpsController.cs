@@ -21,7 +21,11 @@ public class FpsController : MonoBehaviour
     public float jumpForce = 10;
     public float stepOffset = 1f;
     public LayerMask WhatIsGround;
-   
+    [Tooltip("The Y position from where the ray is being shot to check grounded")]
+    public float groundCheckStartY = 0;
+    [Tooltip("How much distance the ray travels")]
+    public float groundCheckDist = 1.1f;
+
     private Vector3 PlayerRotation;
     private Vector2 inputDir = Vector2.zero;
     float MouseX, MouseY;
@@ -42,21 +46,23 @@ public class FpsController : MonoBehaviour
         // clamp velocity so we don't go over max speed
         // calling this from here because fixed update causes bugs
         ClampVelocity();
+        
     }
 
     private void FixedUpdate()
     {
-        MoveCam();
         Movement();
+        MoveCam();
     }
 
     private void Movement()
     {
         rb.AddForce(-transform.up * 9.8f);
         // ground check
-        Ray ray = new Ray(transform.position, -transform.up);
+        Ray ray = new Ray(transform.position+new Vector3(0, groundCheckStartY, 0), -transform.up);
         RaycastHit hit;
-        isGrounded = Physics.Raycast(ray, out hit, 1.1f, WhatIsGround);
+        isGrounded = Physics.Raycast(ray, out hit, groundCheckDist, WhatIsGround);
+        Debug.DrawRay(ray.origin, ray.direction.normalized * groundCheckDist, Color.black);
 
         if (inputDir.magnitude == 0 && stopInstantly && isGrounded)
         {
@@ -72,7 +78,7 @@ public class FpsController : MonoBehaviour
         // move the player by adding force
         Vector3 moveDir = (transform.forward * inputDir.y + transform.right * inputDir.x).normalized * acceleration * Time.fixedDeltaTime * 10;
         rb.AddForce(moveDir, ForceMode.VelocityChange);
-       
+
 
         // if the player is not pressing any keys apply friction
         if (inputDir.magnitude <= .2f && (int)rb.velocity.magnitude > 0 && isGrounded)
@@ -114,7 +120,7 @@ public class FpsController : MonoBehaviour
     {
         if (isGrounded && !crouching && sprinting)
         {
-            
+
             maxSpeed = sprintMaxSpeed;
         }
     }
@@ -127,6 +133,8 @@ public class FpsController : MonoBehaviour
         Vector3 step = transform.position - new Vector3(0, transform.localScale.y - stepOffset, 0);
         Ray legRay = new Ray(leg, vel);
         Ray stepRay = new Ray(step, vel);
+        Debug.DrawRay(legRay.origin, legRay.direction * 10, Color.red);
+        Debug.DrawRay(stepRay.origin, stepRay.direction * 10, Color.blue);
         RaycastHit legHit;
         RaycastHit stepHit;
         float castDist = .9f;
@@ -173,7 +181,7 @@ public class FpsController : MonoBehaviour
         else sprinting = false;
         if (Input.GetKeyDown(KeyCode.C))
         {
-            crouching = !crouching ? true : false;
+            crouching = !crouching && !sprinting ? true : false;
         }
     }
 
