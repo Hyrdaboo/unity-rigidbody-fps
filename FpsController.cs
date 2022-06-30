@@ -51,6 +51,11 @@ public class FpsController : MonoBehaviour
 
     private void FixedUpdate()
     {
+        // mouse input
+        float invert = invertedLook ? -1 : 1;
+        MouseX = Input.GetAxisRaw("Mouse X") * invert;
+        MouseY = Input.GetAxisRaw("Mouse Y") * invert;
+    
         Movement();
         MoveCam();
     }
@@ -162,11 +167,6 @@ public class FpsController : MonoBehaviour
 
     private void GetInput()
     {
-        // mouse input
-        float invert = invertedLook ? -1 : 1;
-        MouseX = Input.GetAxisRaw("Mouse X") * invert;
-        MouseY = Input.GetAxisRaw("Mouse Y") * invert;
-
         inputDir.x = Input.GetAxisRaw("Horizontal");
         inputDir.y = Input.GetAxisRaw("Vertical");
         if (Input.GetKey(KeyCode.Space))
