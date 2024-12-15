@@ -1,79 +1,100 @@
 using UnityEngine;
 
-// I recommend giving a slippery physics material to player's collider for wall sliding
+[RequireComponent(typeof(Rigidbody))]
 public class BasicController : MonoBehaviour
 {
-    [SerializeField] private Transform fpsCam;
+    [SerializeField] private float maxSpeed = 8.0f;
+    [SerializeField] private float acceleration = 12.0f;
+    [SerializeField] private float gravity = 9.81f;
+    [SerializeField] private float jumpForce = 5.0f;
+    [Range(0.001f, 0.75f)]
+    [SerializeField] private float stopThreshold = 0.1f;
+    [SerializeField] private Camera fpsCam;
     [SerializeField] private float lookSpeed = 5.0f;
-    [SerializeField] private float maxSpeed = 10.0f;
-    [Range(0f, 1f)]
-    [SerializeField] private float headBob = 0.1f;
-    [Min(1)]
-    [SerializeField] private float bobFrequency = 10.0f;
 
     private Rigidbody rb;
-    private Vector2 inputDir;
-    private Vector2 mouseDelta;
-    private Vector3 camInitialPos;
+    private Vector3 inputDir;
 
-    private void Start()
+    private Vector3 FlatVelocity => new Vector3(rb.velocity.x, 0, rb.velocity.z);
+
+    private void Awake()
     {
         rb = GetComponent<Rigidbody>();
         rb.freezeRotation = true;
-
-        camInitialPos = fpsCam.localPosition;
-
-        Cursor.lockState = CursorLockMode.Locked;
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
+        rb.useGravity = false;
     }
 
-    protected void Update()
+    float xRot, yRot;
+    private void Update()
     {
         inputDir.x = Input.GetAxisRaw("Horizontal");
-        inputDir.y = Input.GetAxisRaw("Vertical");
+        inputDir.z = Input.GetAxisRaw("Vertical");
+        inputDir.Normalize();
+
+        // Camera Look
+        Vector2 mouseDelta;
         mouseDelta.x = Input.GetAxisRaw("Mouse X");
         mouseDelta.y = -Input.GetAxisRaw("Mouse Y");
+        xRot += lookSpeed * mouseDelta.y;
+        yRot += lookSpeed * mouseDelta.x;
+        xRot = Mathf.Clamp(xRot, -90, 90);
+        fpsCam.transform.rotation = Quaternion.Euler(xRot, yRot, 0);
 
+        if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
+        {
+            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+        }
     }
 
     private void FixedUpdate()
     {
-        Movement();
-        LookAround();
+        rb.AddForce(Vector3.down * Mathf.Abs(gravity));
+
+        Vector3 moveDirDesired = Quaternion.Euler(0, fpsCam.transform.eulerAngles.y, 0) * inputDir;
+        moveDirDesired.Normalize();
+
+        if (isGrounded)
+        {
+            Vector3 opposingDir = moveDirDesired - FlatVelocity.normalized;
+            Vector3 opposingForce = acceleration * opposingDir;
+            rb.AddForce(opposingForce);
+            Debug.DrawRay(transform.position, opposingForce, Color.red);
+
+            float speed = acceleration - acceleration / maxSpeed * FlatVelocity.magnitude;
+            rb.AddForce(speed * moveDirDesired);
+        }
+        else
+        {
+            Vector3 airForce = moveDirDesired * maxSpeed - Vector3.ClampMagnitude(FlatVelocity, maxSpeed);
+            rb.AddForce(airForce);
+        }
+
+        if (rb.velocity.magnitude <= stopThreshold)
+        {
+            rb.velocity = new Vector3 { y = rb.velocity.y };
+        };
     }
 
-    private void Movement()
+    private bool isGrounded, groundDetectedThisFrame;
+    private void OnCollisionStay(Collision collision)
     {
-        bool wallCollision = Physics.CheckSphere(transform.position, 0.6f, 3);
-
-        Vector3 moveDirDesired = (transform.right * inputDir.x + transform.forward * inputDir.y).normalized;
-        Vector3 rbVelocity = new Vector3(rb.velocity.x, 0, rb.velocity.z).normalized;
-        Vector3 moveDir = Vector3.Reflect(-rbVelocity, moveDirDesired).normalized;
-        if (Vector3.Dot(moveDirDesired, rbVelocity) < 0)
-            moveDir = -rbVelocity;
-        if (moveDir.magnitude < 0.05f || wallCollision)
-            moveDir = moveDirDesired;
-        if (inputDir.magnitude > 0)
-            rb.AddForce(moveDir * (maxSpeed - rb.velocity.magnitude), ForceMode.VelocityChange);
-        rb.drag = inputDir == Vector2.zero ? 5 : 0;
+        for (int i = 0; i < collision.contactCount; i++)
+        {
+            // ideally we should use slope angular limit here
+            if (Vector3.Dot(Vector3.up, collision.contacts[i].normal) > 0.5f)
+            {
+                isGrounded = true;
+                groundDetectedThisFrame = true;
+                return;
+            }
+        }
     }
 
-    float xRot, yRot, off;
-    float xBob, yBob;
-    private void LookAround()
+    private void LateUpdate()
     {
-        off += Time.deltaTime * bobFrequency;
-
-        xRot += lookSpeed * mouseDelta.y;
-        yRot += lookSpeed * mouseDelta.x;
-        xRot = Mathf.Clamp(xRot, -90, 90);
-        
-        float xBobDesired = Mathf.Sin(off) * headBob * inputDir.magnitude;
-        float yBobDesired = Mathf.Abs(Mathf.Sin(off)) * headBob * inputDir.magnitude;
-        xBob = Mathf.MoveTowards(xBob, xBobDesired, Time.deltaTime * 2.0f);
-        yBob = Mathf.MoveTowards(yBob, yBobDesired, Time.deltaTime * 2.0f);
-        fpsCam.localPosition = new Vector3(camInitialPos.x + xBob, camInitialPos.y + yBob, camInitialPos.z);
-        
-        fpsCam.localEulerAngles = new Vector3 { x = xRot };
-        transform.localEulerAngles = new Vector3 { y = yRot };
+        if (!groundDetectedThisFrame)
+            isGrounded = false;
+        groundDetectedThisFrame = false;
     }
 }
