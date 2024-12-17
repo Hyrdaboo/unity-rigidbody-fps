@@ -7,8 +7,6 @@ public class BasicController : MonoBehaviour
     [SerializeField] private float acceleration = 12.0f;
     [SerializeField] private float gravity = 9.81f;
     [SerializeField] private float jumpForce = 5.0f;
-    [Range(0.001f, 0.75f)]
-    [SerializeField] private float stopThreshold = 0.1f;
     [SerializeField] private Camera fpsCam;
     [SerializeField] private float lookSpeed = 5.0f;
 
@@ -54,26 +52,17 @@ public class BasicController : MonoBehaviour
         Vector3 moveDirDesired = Quaternion.Euler(0, fpsCam.transform.eulerAngles.y, 0) * inputDir;
         moveDirDesired.Normalize();
 
+
         if (isGrounded)
         {
-            Vector3 opposingDir = moveDirDesired - FlatVelocity.normalized;
-            Vector3 opposingForce = acceleration * opposingDir;
-            rb.AddForce(opposingForce);
-            Debug.DrawRay(transform.position, opposingForce, Color.red);
-
-            float speed = acceleration - acceleration / maxSpeed * FlatVelocity.magnitude;
-            rb.AddForce(speed * moveDirDesired);
+            Vector3 force = moveDirDesired * acceleration - acceleration / maxSpeed * FlatVelocity;
+            rb.AddForce(force);
         }
         else
         {
             Vector3 airForce = moveDirDesired * maxSpeed - Vector3.ClampMagnitude(FlatVelocity, maxSpeed);
             rb.AddForce(airForce);
         }
-
-        if (rb.velocity.magnitude <= stopThreshold)
-        {
-            rb.velocity = new Vector3 { y = rb.velocity.y };
-        };
     }
 
     private bool isGrounded, groundDetectedThisFrame;
@@ -86,7 +75,7 @@ public class BasicController : MonoBehaviour
             {
                 isGrounded = true;
                 groundDetectedThisFrame = true;
-                return;
+                break;
             }
         }
     }
